@@ -16,20 +16,20 @@ tc = np.arange(2, 30, 1)
 
 #K nearest neighbors
 # Maximum number of neighbors
-L=100
+L=40
 
 KInner = 5
 KOuter = 2
 
-def Knearest():
+def Knearest(X_test, y_test, X_train, y_train, innerLoopNum):
     # Fit classifier and classify the test points (consider 1 to 40 neighbors)
     for l in range(1,L+1):
         knclassifier = KNeighborsClassifier(n_neighbors=l);
         knclassifier.fit(X_train, y_train);
         y_est = knclassifier.predict(X_test);
         for j in range(0,len(y_est)):
-            errors[j+k*len(y_est),l-1] = np.sum(y_est[j]!=y_test[j])
-
+            Error_test_KNearest[j+innerLoopNum*len(y_est),l-1] = np.sum(y_est[j]!=y_test[j])
+            
 
 def DecisionTree(X_test, y_test, X_train, y_train):
     Error_test = np.zeros(tc.size)
@@ -47,40 +47,41 @@ def DecisionTree(X_test, y_test, X_train, y_train):
     
     return Error_test, Error_train
 
-def NaiveBayers(X_test, y_test, X_train, y_train):
-    Error_test = np.zeros(nb_alpha.size)
-    Error_train = np.zeros(nb_alpha.size)
-    for i, a in enumerate(nb_alpha):
-        nb_classifier = MultinomialNB(alpha=a, fit_prior=True)
-        nb_classifier.fit(X_train, y_train)
-        y_est_test_prob = nb_classifier.predict_proba(X_test)
-        y_est_train_prob = nb_classifier.predict_proba(X_train)
-        y_est_test = np.argmax(y_est_test_prob,1)
-        y_est_train = np.argmax(y_est_train_prob,1)
-        Error_test[i] = np.sum(y_est_test!=y_test)/y_test.size   
-        Error_train[i] = np.sum(y_est_train!=y_test)/y_test.size  
-    return Error_test, Error_train
+#def NaiveBayers(X_test, y_test, X_train, y_train):
+#    Error_test = np.zeros(nb_alpha.size)
+#    Error_train = np.zeros(nb_alpha.size)
+#    for i, a in enumerate(nb_alpha):
+#        nb_classifier = MultinomialNB(alpha=a, fit_prior=True)
+#        nb_classifier.fit(X_train, y_train)
+#        y_est_test_prob = nb_classifier.predict_proba(X_test)
+#        y_est_train_prob = nb_classifier.predict_proba(X_train)
+#        y_est_test = np.argmax(y_est_test_prob,1)
+#        y_est_train = np.argmax(y_est_train_prob,1)
+#        Error_test[i] = np.sum(y_est_test!=y_test)/y_test.size   
+#        Error_train[i] = np.sum(y_est_train!=y_test)/y_test.size  
+#    return Error_test, Error_train
 
-def inner_cv(X_i, y_i):
+def inner_cv(X_train, y_train, X_test, y_test):
     # K-fold crossvalidation
     K = 10
     CV = model_selection.KFold(n_splits=KInner,shuffle=True)
     # Initialize variable
     Error_train_tree = np.empty((len(tc),KInner))
     Error_test_tree = np.empty((len(tc),KInner))
-    Error_test_nb = np.zeros((nb_alpha.size, KInner))
-    Error_train_nb = np.zeros((nb_alpha.size, KInner))
+#    Error_test_nb = np.zeros((nb_alpha.size, KInner))
+#    Error_train_nb = np.zeros((nb_alpha.size, KInner))
+    
     k=0
-    for train_index, test_index in CV.split(X_i):
+    for train_index, test_index in CV.split(X_train, y_train):
         print('Computing inner CV fold: {0}/{1}..'.format(k+1,KInner))
     
         # extract training and test set for current CV fold
-        X_train, y_train = X_i[train_index,:], y_i[train_index]
-        X_test, y_test = X_i[test_index,:], y_i[test_index]
+        X_inner_train, y_inner_train = X[train_index,:], y[train_index]
+        X_inner_test, y_inner_test = X[test_index,:], y[test_index]
     
-        Error_test_tree[:,k], Error_train_tree[:,k] = DecisionTree(X_test, y_test, X_train, y_train)
-        Error_test_nb[:,k], Error_train_nb[:,k] = NaiveBayers(X_test, y_test, X_train, y_train)
-        #Knearest()
+        Error_test_tree[:,k], Error_train_tree[:,k] = DecisionTree(X_inner_test, y_inner_test, X_inner_train, y_inner_train)
+#        Error_test_nb[:,k], Error_train_nb[:,k] = NaiveBayers(X_inner_test, y_inner_test, X_inner_train, y_inner_train)
+        Knearest(X_inner_test, y_inner_test, X_inner_train, y_inner_train, k)
         
         k+=1
     
@@ -105,46 +106,79 @@ CV = model_selection.KFold(n_splits=KOuter,shuffle=True)
 Error_test = np.empty(KOuter)
 M_star = np.empty(KOuter)
 
+E_gen_KNearest = np.zeros((KOuter,1))
+Ttest_K_Nearest = np.empty((KOuter,1))
+Ttest_DTree = np.empty((KOuter,1))
+
+minNumNeighbours = np.empty(KOuter)
+
 k=0
-for train_index, test_index in CV.split(X):
+for train_index, test_index in CV.split(X, y):
     print('Computing outer CV fold: {0}/{1}..'.format(k+1,KOuter))
     
+    # extract training and test set for current CV fold
+    X_train, y_train = X[train_index,:], y[train_index]
+    X_test, y_test = X[test_index,:], y[test_index]
+    
     #Perform inner crossvalidation
-    Validation_error = inner_cv(X[train_index], y[train_index])
+    Validation_error = inner_cv(X_train, y_train, X_test, y_test)
     E_gen_s = Validation_error.mean(1) #TODO: Is this correct?
     # Select best model
     M_star[k] = tc[np.argmin(E_gen_s)]
-    
-    # extract training and test set for current CV fold
-    X_test, y_test = X[test_index,:], y[test_index]
+
     dtc = tree.DecisionTreeClassifier(criterion='gini', max_depth=M_star[k])
-    dtc = dtc.fit(X_test, y_test.ravel())
+    dtc = dtc.fit(X_train, y_train.ravel())
     y_est_test = dtc.predict(X_test)
     
     # Evaluate misclassification rate over train/test data (in this CV fold)
     misclass_rate_test = sum(np.abs(y_est_test != y_test)) / float(len(y_est_test))
     Error_test[k] = misclass_rate_test
     
+    Ttest_DTree[k] = 100*(y_est_test!=y_test).sum().astype(float)/len(y_test)
     
     # knearest neighbor
-#    ###############################################
-#    figure()
-#    plot(100*sum(errors,0)/(N/KOuter))
-#    xlabel('Number of neighbors')
-#    ylabel('Classification error rate (%)')
-#    show()
-#    minNumNeighbours[k] = np.argmin(100*sum(errors,0)/(N/KOuter))
+    ###############################################
+    figure()
+    plot(100*sum(Error_test_KNearest,0)/(N/KOuter))
+    xlabel('Number of neighbors')
+    ylabel('Classification error rate (%)')
+    show()
+    minNumNeighbours[k] = np.argmin(100*sum(Error_test_KNearest,0)/(N/KOuter))
 #    
-#    # test the model ( train on Dpar)
-#    knOuterclassifier = KNeighborsClassifier(n_neighbors=minNumNeighbours[k]);
-#    knOuterclassifier.fit(XOuterTrain, YOuterTrain);
-#    y_est = knclassifier.predict(XOuter_test);
-#    genErrors[k] = np.sum(y_est!=yOuter_test)
-#    ###############################################
+    # test the model ( train on Dpar)
+    knOuterclassifier = KNeighborsClassifier(n_neighbors=minNumNeighbours[k]);
+    knOuterclassifier.fit(X_train, y_train);
+    y_est = knclassifier.predict(X_test);
+    E_gen_KNearest[k] = np.sum(y_est!=y_test)
+    Ttest_K_Nearest[k] = 100*(y_est!=y_test).sum().astype(float)/len(y_test)
+    ###############################################
     
     k+=1
 
 Generalization_error = Error_test.mean()
+
+# knearest neighbor plot
+################################################
+figure()
+plot(minNumNeighbours)
+xlabel('model number')
+ylabel('optimal number of neighbours')
+show()
+
+figure()
+plot(100*E_gen_KNearest/(N/KOuter))
+xlabel('Modelnumber')
+ylabel('Error')
+show()
+################################################
+
+[tstatistic, pvalue] = stats.ttest_ind(Ttest_K_Nearest,Ttest_DTree)
+
+if pvalue > 0.05 :
+    print('Classifiers are not significantly different')        
+else:
+    print('Classifiers are significantly different.')
+  
 
 # %%
 #out = tree.export_graphviz(dtc, out_file='tree_deviance.gvz', feature_names=attributeNames)

@@ -10,6 +10,7 @@ import numpy as np
 from scipy.io import loadmat
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn import model_selection
+from scipy import stats
 
 from load_data_classification import *
 
@@ -36,10 +37,13 @@ CVInner = model_selection.KFold(n_splits=KInner,shuffle=True)
 
 
 genErrors = np.zeros((KOuter,1))
-minNumNeighbours = np.zeros((KOuter,1))
+minNumNeighbours = np.empty(KOuter)
 k=0
 i=0
 X = X.values
+
+Error_K_Nearest = np.empty((KOuter,1))
+
 
 for train_index1, test_index1 in CVOuter.split(X, y):
     errors = np.zeros((len(train_index1),L))
@@ -70,12 +74,23 @@ for train_index1, test_index1 in CVOuter.split(X, y):
     minNumNeighbours[k] = np.argmin(100*sum(errors,0)/(N/KOuter))
     
     # test the model ( train on Dpar)
-    knOuterclassifier = KNeighborsClassifier(n_neighbors=minNumNeighbours[k]);
-    knOuterclassifier.fit(XOuterTrain, YOuterTrain);
+    
+    n = int(minNumNeighbours[k])
+    knclassifier = KNeighborsClassifier(n_neighbors=n);
+    knclassifier.fit(XOuterTrain, YOuterTrain);
     y_est = knclassifier.predict(XOuter_test);
     genErrors[k] = np.sum(y_est!=yOuter_test)
+    Error_K_Nearest[k] = 100*(y_est!=yOuter_test).sum().astype(float)/len(y_test)
     k += 1
     
+[tstatistic, pvalue] = stats.ttest_ind(Error_K_Nearest[0],Error_K_Nearest[1])
+
+if pvalue > 0.05 :
+    print('Classifiers are not significantly different')        
+else:
+    print('Classifiers are significantly different.')
+   
+
 figure()
 plot(minNumNeighbours)
 xlabel('model number')
