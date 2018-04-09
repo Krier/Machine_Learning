@@ -99,7 +99,7 @@ def inner_cv(X_train, y_train, X_test, y_test):
     plt.plot(tc, Error_test_tree.mean(1))
     plt.xlabel('Model complexity (max tree depth)')
     plt.ylabel('Error (misclassification rate, CV K={0})'.format(KInner))
-    legend(['Error_train','Error_test'])
+    plt.legend(['Error_train','Error_test'])
     plt.show()
     return Error_test_tree
     
@@ -177,7 +177,8 @@ plt.locator_params(nticks=KOuter)
 plt.plot(100*Error_Test_Tree)
 plt.plot(100*Error_Test_KNearest)
 plt.xlabel('Modelnumber')
-plt.ylabel('Error in %')
+plt.ylabel('Classification error rate (%)')
+plt.legend(['Decision Tree','K Kearest Neighbours'])
 plt.show()
 ################################################
 
