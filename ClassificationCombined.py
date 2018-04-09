@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
-from matplotlib.pyplot import figure, plot, xlabel, ylabel, legend, show, boxplot
+#from matplotlib.pyplot import figure, plot, xlabel, ylabel, legend, show, boxplot
+import matplotlib.pyplot as plt
 
 import numpy as np
 from load_data_classification import X, y, N, M, C
 from sklearn import tree, model_selection
 from sklearn.neighbors import KNeighborsClassifier
+from scipy import stats
+
 #import graphviz
 
 attributeNames = X.columns.values
@@ -86,31 +89,31 @@ def inner_cv(X_train, y_train, X_test, y_test):
         k+=1
     
         
-    f = figure()
-    boxplot(Error_test_tree.T)
-    xlabel('Model complexity (max tree depth)')
-    ylabel('Test error across CV folds, K={0})'.format(KInner))
+    f = plt.figure()
+    plt.boxplot(Error_test_tree.T)
+    plt.xlabel('Model complexity (max tree depth)')
+    plt.ylabel('Test error across CV folds, K={0})'.format(KInner))
     
-    f = figure()
-    plot(tc, Error_train_tree.mean(1))
-    plot(tc, Error_test_tree.mean(1))
-    xlabel('Model complexity (max tree depth)')
-    ylabel('Error (misclassification rate, CV K={0})'.format(KInner))
+    f = plt.figure()
+    plt.plot(tc, Error_train_tree.mean(1))
+    plt.plot(tc, Error_test_tree.mean(1))
+    plt.xlabel('Model complexity (max tree depth)')
+    plt.ylabel('Error (misclassification rate, CV K={0})'.format(KInner))
     legend(['Error_train','Error_test'])
-    show()
+    plt.show()
     return Error_test_tree
     
 #K = 5
 CV = model_selection.KFold(n_splits=KOuter,shuffle=True)
 # Initialize variable
-Error_test = np.empty(KOuter)
+minNumNeighbours = np.empty(KOuter)
 M_star = np.empty(KOuter)
 
-E_gen_KNearest = np.zeros((KOuter,1))
+Error_Test_Tree = np.empty(KOuter)
+Error_Test_KNearest = np.zeros((KOuter,1))
+
 Ttest_K_Nearest = np.empty((KOuter,1))
 Ttest_DTree = np.empty((KOuter,1))
-
-minNumNeighbours = np.empty(KOuter)
 
 k=0
 for train_index, test_index in CV.split(X, y):
@@ -119,6 +122,8 @@ for train_index, test_index in CV.split(X, y):
     # extract training and test set for current CV fold
     X_train, y_train = X[train_index,:], y[train_index]
     X_test, y_test = X[test_index,:], y[test_index]
+    
+    Error_test_KNearest = np.zeros((len(train_index),L))
     
     #Perform inner crossvalidation
     Validation_error = inner_cv(X_train, y_train, X_test, y_test)
@@ -132,44 +137,48 @@ for train_index, test_index in CV.split(X, y):
     
     # Evaluate misclassification rate over train/test data (in this CV fold)
     misclass_rate_test = sum(np.abs(y_est_test != y_test)) / float(len(y_est_test))
-    Error_test[k] = misclass_rate_test
+    Error_Test_Tree[k] = misclass_rate_test
     
     Ttest_DTree[k] = 100*(y_est_test!=y_test).sum().astype(float)/len(y_test)
     
     # knearest neighbor
     ###############################################
-    figure()
-    plot(100*sum(Error_test_KNearest,0)/(N/KOuter))
-    xlabel('Number of neighbors')
-    ylabel('Classification error rate (%)')
-    show()
+    plt.figure()
+    plt.plot(100*sum(Error_test_KNearest,0)/(N/KOuter))
+    plt.xlabel('Number of neighbors')
+    plt.ylabel('Classification error rate (%)')
+    plt.show()
     minNumNeighbours[k] = np.argmin(100*sum(Error_test_KNearest,0)/(N/KOuter))
 #    
     # test the model ( train on Dpar)
-    knOuterclassifier = KNeighborsClassifier(n_neighbors=minNumNeighbours[k]);
-    knOuterclassifier.fit(X_train, y_train);
+    n = int(minNumNeighbours[k])
+    knclassifier = KNeighborsClassifier(n_neighbors=n);
+    knclassifier.fit(X_train, y_train);
     y_est = knclassifier.predict(X_test);
-    E_gen_KNearest[k] = np.sum(y_est!=y_test)
+    Error_Test_KNearest[k] = np.sum(y_est!=y_test)/float(len(y_est))
     Ttest_K_Nearest[k] = 100*(y_est!=y_test).sum().astype(float)/len(y_test)
     ###############################################
     
     k+=1
 
-Generalization_error = Error_test.mean()
+Gen_error_Tree = Error_Test_Tree.mean()
+Gen_error_KNearest = Error_Test_KNearest.mean()
 
 # knearest neighbor plot
 ################################################
-figure()
-plot(minNumNeighbours)
-xlabel('model number')
-ylabel('optimal number of neighbours')
-show()
+plt.figure()
+plt.plot(minNumNeighbours)
+plt.xlabel('model number')
+plt.ylabel('optimal number of neighbours')
+plt.show()
 
-figure()
-plot(100*E_gen_KNearest/(N/KOuter))
-xlabel('Modelnumber')
-ylabel('Error')
-show()
+plt.figure()
+plt.locator_params(nticks=KOuter)
+plt.plot(100*Error_Test_Tree)
+plt.plot(100*Error_Test_KNearest)
+plt.xlabel('Modelnumber')
+plt.ylabel('Error in %')
+plt.show()
 ################################################
 
 [tstatistic, pvalue] = stats.ttest_ind(Ttest_K_Nearest,Ttest_DTree)
