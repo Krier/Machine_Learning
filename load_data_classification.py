@@ -10,12 +10,6 @@ df_orig = df
 df = df.drop('Name', axis=1) # axis 1 is column
 df = df.drop('Developer', axis=1) # axis 1 is column
 df = df.drop('Global_Sales', axis=1) # axis 1 is column
-df = df.drop('NA_Sales', axis=1) # axis 1 is column
-df = df.drop('EU_Sales', axis=1) # axis 1 is column
-df = df.drop('JP_Sales', axis=1) # axis 1 is column
-df = df.drop('Other_Sales', axis=1) # axis 1 is column
-df = df.drop('User_Count', axis=1) # axis 1 is column
-
 
 #summary statistics
 df.describe()
